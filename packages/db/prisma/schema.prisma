@@ -1,0 +1,385 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("MYSQL_URL")
+}
+
+model User {
+  id           String          @id @default(cuid())
+  email        String          @unique
+  phone        String?         @db.VarChar(30)
+  role         UserRole        @default(CUSTOMER)
+  status       UserStatus      @default(ACTIVE)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  profile      UserProfile?
+  carts        Cart[]
+  orders       Order[]
+  reviews      Review[]
+  chatSessions ChatSession[]
+  adminEvents  AdminEventLog[] @relation("AdminActor")
+}
+
+model UserProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  defaultAddress  String?
+  preferredBrands Json?
+  budgetRange     String?
+  styleTags       Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  parentId  String?
+  name      String
+  slug      String     @unique
+  depth     Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+  products  Product[]
+}
+
+model Product {
+  id                 String              @id @default(cuid())
+  categoryId         String
+  name               String
+  brand              String
+  description        String              @db.Text
+  imageUrl           String?
+  attributesJson     Json?
+  color              String?
+  tagsJson           Json?
+  highlightsJson     Json?
+  recommendationJson Json?
+  inventoryStatus    InventoryStatus     @default(IN_STOCK)
+  shippingEta        String?
+  status             ProductStatus       @default(ACTIVE)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  category           Category            @relation(fields: [categoryId], references: [id])
+  variants           ProductVariant[]
+  reviews            Review[]
+  recommendationLogs RecommendationLog[]
+}
+
+model ProductVariant {
+  id           String      @id @default(cuid())
+  productId    String
+  sku          String      @unique
+  label        String
+  size         String?
+  color        String?
+  optionValues Json?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  product      Product     @relation(fields: [productId], references: [id])
+  inventory    Inventory?
+  prices       Price[]
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
+}
+
+model Inventory {
+  id            String         @id @default(cuid())
+  variantId     String         @unique
+  availableQty  Int            @default(0)
+  reservedQty   Int            @default(0)
+  warehouseCode String?
+  updatedAt     DateTime       @updatedAt
+  variant       ProductVariant @relation(fields: [variantId], references: [id])
+}
+
+model Price {
+  id        String         @id @default(cuid())
+  variantId String
+  basePrice Int
+  salePrice Int
+  currency  String         @default("KRW")
+  startsAt  DateTime       @default(now())
+  endsAt    DateTime?
+  createdAt DateTime       @default(now())
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+}
+
+model Coupon {
+  id             String       @id @default(cuid())
+  code           String       @unique
+  discountType   DiscountType
+  discountValue  Int
+  minOrderAmount Int?
+  validFrom      DateTime
+  validTo        DateTime
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Cart {
+  id            String     @id @default(cuid())
+  userId        String?
+  status        CartStatus @default(ACTIVE)
+  subtotal      Int        @default(0)
+  discountTotal Int        @default(0)
+  shippingFee   Int        @default(0)
+  grandTotal    Int        @default(0)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  user          User?      @relation(fields: [userId], references: [id])
+  items         CartItem[]
+}
+
+model CartItem {
+  id        String         @id @default(cuid())
+  cartId    String
+  variantId String
+  quantity  Int            @default(1)
+  unitPrice Int
+  lineTotal Int
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  cart      Cart           @relation(fields: [cartId], references: [id])
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  userId          String?
+  orderNo         String      @unique
+  status          OrderStatus @default(PENDING_CONFIRMATION)
+  shippingAddress String
+  paymentMethod   String
+  subtotal        Int
+  discountTotal   Int
+  shippingFee     Int
+  grandTotal      Int
+  eta             String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  user            User?       @relation(fields: [userId], references: [id])
+  items           OrderItem[]
+  payment         Payment?
+  shipment        Shipment?
+}
+
+model OrderItem {
+  id           String         @id @default(cuid())
+  orderId      String
+  variantId    String
+  productName  String
+  variantLabel String
+  quantity     Int
+  unitPrice    Int
+  lineTotal    Int
+  createdAt    DateTime       @default(now())
+  order        Order          @relation(fields: [orderId], references: [id])
+  variant      ProductVariant @relation(fields: [variantId], references: [id])
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  orderId       String        @unique
+  provider      String
+  paymentKeyRef String?
+  amount        Int
+  status        PaymentStatus @default(PENDING)
+  approvedAt    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  order         Order         @relation(fields: [orderId], references: [id])
+}
+
+model Shipment {
+  id             String             @id @default(cuid())
+  orderId        String             @unique
+  carrier        String
+  trackingNo     String             @unique
+  shipmentStatus ShipmentStatusEnum @default(PENDING)
+  timelineJson   Json?
+  lastEventAt    DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  order          Order              @relation(fields: [orderId], references: [id])
+}
+
+model Review {
+  id             String   @id @default(cuid())
+  productId      String
+  userId         String?
+  rating         Int
+  content        String   @db.Text
+  sentimentScore Float?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  product        Product  @relation(fields: [productId], references: [id])
+  user           User?    @relation(fields: [userId], references: [id])
+}
+
+model ChatSession {
+  id                  String               @id @default(cuid())
+  userId              String?
+  channel             String               @default("web")
+  sessionStatus       ChatSessionStatus    @default(ACTIVE)
+  startedAt           DateTime             @default(now())
+  endedAt             DateTime?
+  user                User?                @relation(fields: [userId], references: [id])
+  messages            ChatMessage[]
+  recommendationLogs  RecommendationLog[]
+  actionExecutionLogs ActionExecutionLog[]
+  fallbackLogs        FallbackLog[]
+}
+
+model ChatMessage {
+  id            String      @id @default(cuid())
+  sessionId     String
+  role          ChatRole
+  messageText   String      @db.Text
+  uiPayloadJson Json?
+  createdAt     DateTime    @default(now())
+  session       ChatSession @relation(fields: [sessionId], references: [id])
+  intentLogs    IntentLog[]
+  slotLogs      SlotLog[]
+}
+
+model IntentLog {
+  id              String      @id @default(cuid())
+  messageId       String
+  predictedIntent String
+  confidence      Float?
+  finalIntent     String?
+  createdAt       DateTime    @default(now())
+  message         ChatMessage @relation(fields: [messageId], references: [id])
+}
+
+model SlotLog {
+  id         String      @id @default(cuid())
+  messageId  String
+  slotName   String
+  slotValue  String
+  source     String
+  confidence Float?
+  validated  Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+  message    ChatMessage @relation(fields: [messageId], references: [id])
+}
+
+model RecommendationLog {
+  id                 String      @id @default(cuid())
+  sessionId          String
+  productId          String?
+  requestContextJson Json?
+  rankingScoresJson  Json?
+  createdAt          DateTime    @default(now())
+  session            ChatSession @relation(fields: [sessionId], references: [id])
+  product            Product?    @relation(fields: [productId], references: [id])
+}
+
+model ActionExecutionLog {
+  id                 String      @id @default(cuid())
+  sessionId          String
+  actionType         String
+  requestPayloadHash String?
+  responseStatus     String
+  approvalRequired   Boolean     @default(false)
+  approvedBy         String?
+  traceId            String?
+  createdAt          DateTime    @default(now())
+  session            ChatSession @relation(fields: [sessionId], references: [id])
+}
+
+model FallbackLog {
+  id           String      @id @default(cuid())
+  sessionId    String
+  fallbackType String
+  reason       String
+  resolvedBy   String?
+  createdAt    DateTime    @default(now())
+  session      ChatSession @relation(fields: [sessionId], references: [id])
+}
+
+model AdminEventLog {
+  id         String   @id @default(cuid())
+  adminId    String?
+  eventType  String
+  targetId   String?
+  beforeJson Json?
+  afterJson  Json?
+  createdAt  DateTime @default(now())
+  admin      User?    @relation("AdminActor", fields: [adminId], references: [id])
+}
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+  SUPPORT
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum InventoryStatus {
+  IN_STOCK
+  LOW_STOCK
+  OUT_OF_STOCK
+}
+
+enum DiscountType {
+  FIXED
+  PERCENTAGE
+}
+
+enum CartStatus {
+  ACTIVE
+  CONVERTED
+  ABANDONED
+}
+
+enum OrderStatus {
+  PENDING_CONFIRMATION
+  PLACED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum ShipmentStatusEnum {
+  PENDING
+  SHIPPED
+  IN_TRANSIT
+  DELIVERED
+}
+
+enum ChatSessionStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
