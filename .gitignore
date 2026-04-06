@@ -1,0 +1,10 @@
+node_modules/
+references/
+.env
+apps/api/.env
+packages/db/.env
+*.log
+.next/
+dist/
+coverage/
+*.tsbuildinfo

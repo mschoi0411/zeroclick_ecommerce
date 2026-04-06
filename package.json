@@ -1,0 +1,25 @@
+{
+  "name": "@zeroclick/workspace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zero Click Ecommerce monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build:domain": "npm run build --workspace @zeroclick/domain",
+    "build:db": "npm run build --workspace @zeroclick/db",
+    "seed:db": "npm run seed --workspace @zeroclick/db",
+    "dev:storefront": "npm run dev --workspace storefront-web",
+    "dev:admin": "npm run dev --workspace admin-web",
+    "dev:api": "npm run start:dev --workspace api",
+    "build": "npm run build:domain && npm run build:db && npm run build --workspace api && npm run build --workspace storefront-web && npm run build --workspace admin-web",
+    "lint": "npm run lint --workspace api && npm run lint --workspace storefront-web && npm run lint --workspace admin-web",
+    "test": "npm run build:domain && npm run test --workspace api"
+  },
+  "engines": {
+    "node": ">=24.0.0",
+    "npm": ">=11.0.0"
+  }
+}
